@@ -8,7 +8,7 @@ export default function App() {
   const [currentAccount, setCurrentAccount] = useState("");
   const [waveCount, setWaveCount] = useState(0);
   const [loading, setLoading] = useState(false);
-  const contractAddress = "0x36bc50D635fCBF4a65599aC105cc8363b6a9d071";
+  const contractAddress = "0x756016b0Ab7672D2D99E06d920433FE49219c103";
 
   /**
    * Create a variable here that references the abi content!
@@ -39,7 +39,6 @@ export default function App() {
       console.log(error);
     }
   };
-
   const getWaveCount = async () => {
     try {
       const { ethereum } = window;
@@ -98,7 +97,35 @@ export default function App() {
   useEffect(() => {
     checkIfWalletIsConnected();
     getWaveCount();
-    getAllWaves();
+
+    let wavePortalContract;
+
+    const onNewWave = (from, timestamp, message) => {
+      console.log("New wave: ", from, timestamp, message);
+
+      setAllWaves((prevState) => [
+        ...prevState,
+        {
+          address: from,
+          timestamp: new Date(timestamp * 1000),
+          message: message,
+        },
+      ]);
+    };
+
+    if (window.ethereum) {
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      const signer = provider.getSigner();
+
+      wavePortalContract = new ethers.Contract(contractAddress, contractABI, signer);
+      wavePortalContract.on("NewWave", onNewWave);
+    }
+
+    return () => {
+      if (wavePortalContract) {
+        wavePortalContract.off("NewWave", onNewWave);
+      }
+    }
   }, [loading]);
 
   const connectWallet = async () => {
@@ -134,7 +161,7 @@ export default function App() {
         );
 
         setLoading(true);
-        const waveTxn = await wavePortalContract.wave(text);
+        const waveTxn = await wavePortalContract.wave(text, { gasLimit: 300000 });
         console.log("Mining...", waveTxn.hash);
 
         await waveTxn.wait();
@@ -163,7 +190,12 @@ export default function App() {
         <button className="waveButton" onClick={wave}>
           {!loading ? "Wave at Me" : "Waving"}
         </button>
-        <input type="text" value={text} onChange={(e) => setText(e.target.value)} placeholder="Wave message"/>
+        <input
+          type="text"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Wave message"
+        />
         {!currentAccount && (
           <button className="waveButton" onClick={connectWallet}>
             Connect Wallet
@@ -172,9 +204,9 @@ export default function App() {
 
         {allWaves.map((wave, index) => (
           <div key={index} className="waveMessage">
-            <div>Address: {wave.address}</div> 
-            <div>Time: {wave.timestamp.toString()}</div> 
-            <div>Message: {wave.message}</div> 
+            <div>Address: {wave.address}</div>
+            <div>Time: {wave.timestamp.toString()}</div>
+            <div>Message: {wave.message}</div>
           </div>
         ))}
       </div>
